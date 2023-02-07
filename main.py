@@ -17,9 +17,10 @@ options = Options()
 options.headless = True
 driver = webdriver.Chrome(options=options ,executable_path=DRIVER_PATH)
 
-submitter_columns = ["Submission ID", "submitting on behalf of an organization or industry?","Organization Name", 
-                        "Commenter First Name","Commenter Last Name",
-                        "Does your business meet the size standards for a U.S", "number of employees"]
+submitter_columns = ["Submission ID", "submitting on behalf of an organization or industry?","Organization Name", "Third Party Organizational Type",
+                        "Commenter First Name","Third Party Firm, Association Name","Commenter Last Name","Third Party Representative",
+                        "Does your business meet the size standards for a U.S", "number of employees"
+                        ]
 #---END OF GLOBAL---#
 
 class DocketScrapper:
@@ -111,20 +112,39 @@ class DocketScrapper:
     def scrap_submission(self, link) -> list:
         '''Iterates through links and collects necessary information'''
         driver.get(link)
+        #loops the page until the driver collects the elements
         while(True):
-            time.sleep(.5)
+            time.sleep(.2) #Delay give the page time to load
+            submission_title = driver.find_elements(by=By.XPATH, value="//c-ustrfb-public-details-review-content-row//c-ustrfb-public-details-review-content-field/div[(contains(@class, 'slds-form-element slds-form-element_readonly') and not (contains(@class, 'is-horizontal')))]/span[contains(@class,'slds-form-element__label')]" )
             submission_contents = driver.find_elements(by=By.XPATH, value="//c-ustrfb-public-details-review-content-row//div/div/div[contains(@class, slds-form-element__static)]")
-            if(submission_contents == []):
+
+            if(submission_contents == [] or submission_title == []):
                 continue
             else:
                 break
         submitter_list = []
-        for i in range(0, 7):
+        
+        content_length = len(submission_title)
+        #Since submitter info has different lengths we check how many titles we found and only collect contents within that range
+        for i in range(0, content_length):
             submitter_list.append(submission_contents[i].text)
 
+        #Since contents containing 10 submitter info elements have a different format we have to insert whitespace into
+        #the smaller lengths submiiter info to keep consistent formating in the dataframe.
+        if(content_length < 10):
+            submitter_list.insert(3, ' ')
+            submitter_list.insert(5, ' ')
+            submitter_list.insert(7, ' ')
+
         return submitter_list
-#//c-ustrfb-public-details-review-content-row//div/div[contains(@class, "slds-size_1-of-2")]//div//div[contains(@class, slds-form-element__static)]/div #all submitter info
-#//c-ustrfb-public-details-review-content-row//div/div[contains(@class, "slds-size_1-of-2")]//div//div[contains(@class, slds-form-element__static)]/div
+#Commonly used xpath's
+##all submitter content
+#//c-ustrfb-public-details-review-content-row//div/div[contains(@class, "slds-size_1-of-2")]//div//div[contains(@class, slds-form-element__static)]/div 
+# titles
+#//c-ustrfb-public-details-review-content-row//span 
+#Only submiiter title info
+#//c-ustrfb-public-details-review-content-row//c-ustrfb-public-details-review-content-field/div[(contains(@class, "slds-form-element slds-form-element_readonly") and not (contains(@class, "is-horizontal")))]/span[contains(@class,"slds-form-element__label")]
+
 docket_scraper = DocketScrapper()
 submit_list = []
 #Continues to loop until a link list is loaded or produced.
@@ -136,21 +156,21 @@ while(True):
     else:
         print(len(docket_scraper.link_list))
         break
-count = 0
 
+count = 0
+#scraps each link inside the URL while keeping count
 for i in docket_scraper.link_list:
     try:
         submit_list.append(docket_scraper.scrap_submission(i))
+    
     except Exception as e:
         print(e)
     count += 1
-
     print(count)
 
 
-    
 submitter_df = pd.DataFrame(submit_list, columns= submitter_columns)
 
-submitter_df.to_excel('sub.xlsx')
+submitter_df.to_excel('ustr_submit.xlsx')
 print('done')
 driver.quit()
