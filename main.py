@@ -137,16 +137,43 @@ class DocketScrapper:
             submitter_list.insert(7, ' ')
 
         return submitter_list
+
+    def collect_submissions(self, limit = 0) -> list:
+        submit_list = []
+        count = 0
+        #scraps each link inside the URL while keeping count
+        for i in self.link_list:
+            try:
+                submit_list.append(self.scrap_submission(i))
+            
+            except Exception as e:
+                print(e)
+            count += 1
+            if(count > limit and limit > 0):
+                break
+            print(count)
+        
+        return submit_list
+    def scrap_contents(self):
+        pass
+
 #Commonly used xpath's
-##all submitter content
+#all submitter content
 #//c-ustrfb-public-details-review-content-row//div/div[contains(@class, "slds-size_1-of-2")]//div//div[contains(@class, slds-form-element__static)]/div 
 # titles
 #//c-ustrfb-public-details-review-content-row//span 
 #Only submiiter title info
 #//c-ustrfb-public-details-review-content-row//c-ustrfb-public-details-review-content-field/div[(contains(@class, "slds-form-element slds-form-element_readonly") and not (contains(@class, "is-horizontal")))]/span[contains(@class,"slds-form-element__label")]
-
+#scraps information up to additional comments
+#//c-ustrfb-public-details-review-content-row//div/div//div/div/div
+#scaps titles up to additional comments
+#//c-ustrfb-public-details-review-content-row//span
+#scraps information inside additional comments
+#//c-ustrfb-display-repeating-records//c-ustrfb-public-details-review-content-field/div/div/div
+#scraps titles inside additional comments
+#//c-ustrfb-display-repeating-records//c-ustrfb-public-details-review-content-field/div/span
 docket_scraper = DocketScrapper()
-submit_list = []
+
 #Continues to loop until a link list is loaded or produced.
 while(True):
     if(not docket_scraper.load_link_list()):
@@ -156,20 +183,8 @@ while(True):
     else:
         print(len(docket_scraper.link_list))
         break
-
-count = 0
-#scraps each link inside the URL while keeping count
-for i in docket_scraper.link_list:
-    try:
-        submit_list.append(docket_scraper.scrap_submission(i))
-    
-    except Exception as e:
-        print(e)
-    count += 1
-    print(count)
-
-
-submitter_df = pd.DataFrame(submit_list, columns= submitter_columns)
+list_of_submissions = docket_scraper.collect_submissions(10)
+submitter_df = pd.DataFrame(list_of_submissions, columns= submitter_columns)
 
 submitter_df.to_excel('ustr_submit.xlsx')
 print('done')
