@@ -13,6 +13,7 @@ import pandas as pd
 DRIVER_PATH = 'C:/Users/Astro/Downloads/selen/chromedriver.exe' #Change to wherever your driver is located
 DOCKET_PATH = "https://comments.ustr.gov/s/docket?docketNumber=USTR-2022-0014"
 LINK_PATH = "links.txt"
+SUBMISSION_PATH = "ustr/"
 options = Options()
 options.headless = True
 driver = webdriver.Chrome(options=options ,executable_path=DRIVER_PATH)
@@ -154,9 +155,52 @@ class DocketScrapper:
             print(count)
         
         return submit_list
-    def scrap_contents(self):
-        pass
 
+    def scrap_contents(self, limit = 0):
+        
+        count = 0
+        for i in self.link_list:
+            try:
+                self.scrap_to_additional(i)
+            
+            except Exception as e:
+                print(e)
+            count += 1
+            if(count > limit and limit > 0):
+                break
+            print(count)
+
+        
+    def scrap_to_additional(self,link):
+        driver.get(link)
+        content_title = []
+        content_contents = []
+        #loops the page until the driver collects the elements
+        while(True):
+            time.sleep(1) #Delay give the page time to load
+            content_title = driver.find_elements(by=By.XPATH, value="//c-ustrfb-public-details-review-content-row//span" ) 
+            content_v = driver.find_elements(by=By.XPATH, value="//c-ustrfb-display-repeating-records//c-ustrfb-public-details-review-content-field/div/span" )
+            content_contents = driver.find_elements(by=By.XPATH, value="//c-ustrfb-public-details-review-content-row//div/div//div/div/div") 
+            print(content_v)
+            if(content_title == [] or content_contents == [] or content_v == []):
+                continue
+            else:
+                break
+        contents = []
+        titles = []
+        for i in content_title:
+            titles.append(i.text)
+            #print(i.text)
+        for i in content_contents:
+            contents.append(i.text)
+            #print(i.text)
+        content_df = pd.DataFrame([contents], columns=titles)
+        if not os.path.exists(f"{SUBMISSION_PATH}/{content_contents[0]}/"):
+            print("made")
+
+            os.makedirs(f"{SUBMISSION_PATH}/{contents[0]}/")
+        content_df.to_csv(f"{SUBMISSION_PATH}/{contents[0]}/{contents[0]}.csv", index=False)
+        
 #Commonly used xpath's
 #all submitter content
 #//c-ustrfb-public-details-review-content-row//div/div[contains(@class, "slds-size_1-of-2")]//div//div[contains(@class, slds-form-element__static)]/div 
@@ -164,10 +208,12 @@ class DocketScrapper:
 #//c-ustrfb-public-details-review-content-row//span 
 #Only submiiter title info
 #//c-ustrfb-public-details-review-content-row//c-ustrfb-public-details-review-content-field/div[(contains(@class, "slds-form-element slds-form-element_readonly") and not (contains(@class, "is-horizontal")))]/span[contains(@class,"slds-form-element__label")]
+
 #scraps information up to additional comments
 #//c-ustrfb-public-details-review-content-row//div/div//div/div/div
 #scaps titles up to additional comments
 #//c-ustrfb-public-details-review-content-row//span
+
 #scraps information inside additional comments
 #//c-ustrfb-display-repeating-records//c-ustrfb-public-details-review-content-field/div/div/div
 #scraps titles inside additional comments
@@ -183,9 +229,10 @@ while(True):
     else:
         print(len(docket_scraper.link_list))
         break
-list_of_submissions = docket_scraper.collect_submissions(10)
-submitter_df = pd.DataFrame(list_of_submissions, columns= submitter_columns)
+#list_of_submissions = docket_scraper.collect_submissions(10)
+#submitter_df = pd.DataFrame(list_of_submissions, columns= submitter_columns)
 
-submitter_df.to_excel('ustr_submit.xlsx')
+#submitter_df.to_excel('ustr_submit.xlsx')
+list_of_submissions = docket_scraper.scrap_contents(10)
 print('done')
 driver.quit()
