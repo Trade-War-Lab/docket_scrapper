@@ -5,6 +5,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import shutil
+
 import time
 import os
 import pandas as pd
@@ -14,8 +16,15 @@ DRIVER_PATH = 'C:/Users/Astro/Downloads/selen/chromedriver.exe' #Change to where
 DOCKET_PATH = "https://comments.ustr.gov/s/docket?docketNumber=USTR-2022-0014"
 LINK_PATH = "links.txt"
 SUBMISSION_PATH = "ustr/"
+DOWNLOAD_PATH = SUBMISSION_PATH + "download/"
+INFO_PATH = SUBMISSION_PATH + "info/"
+
+path = os.path.abspath(DOWNLOAD_PATH)
+print(path)
+prefs = {"download.default_directory":path}
 options = Options()
-options.headless = True
+options.add_experimental_option("prefs", prefs)
+options.headless = False
 driver = webdriver.Chrome(options=options ,executable_path=DRIVER_PATH)
 
 submitter_columns = ["Submission ID", "submitting on behalf of an organization or industry?","Organization Name", "Third Party Organizational Type",
@@ -27,6 +36,9 @@ submitter_columns = ["Submission ID", "submitting on behalf of an organization o
 class DocketScrapper:
     def __init__(self) -> None:
         driver.get(DOCKET_PATH)
+        self.create_directories(DOWNLOAD_PATH)
+        self.create_directories(INFO_PATH)
+
         self.link_list = []
 
     def load_link_list(self)-> bool:
@@ -115,10 +127,11 @@ class DocketScrapper:
         driver.get(link)
         #loops the page until the driver collects the elements
         while(True):
-            time.sleep(.2) #Delay give the page time to load
+            time.sleep(1) #Delay give the page time to load
             submission_title = driver.find_elements(by=By.XPATH, value="//c-ustrfb-public-details-review-content-row//c-ustrfb-public-details-review-content-field/div[(contains(@class, 'slds-form-element slds-form-element_readonly') and not (contains(@class, 'is-horizontal')))]/span[contains(@class,'slds-form-element__label')]" )
             submission_contents = driver.find_elements(by=By.XPATH, value="//c-ustrfb-public-details-review-content-row//div/div/div[contains(@class, slds-form-element__static)]")
-
+            
+            print(driver.find_elements(by=By.XPATH, value="//c-ustrfb-display-repeating-records//c-ustrfb-public-details-review-content-field/div/span" ))
             if(submission_contents == [] or submission_title == []):
                 continue
             else:
@@ -139,85 +152,81 @@ class DocketScrapper:
 
         return submitter_list
 
-    def collect_submissions(self, limit = 0) -> list:
+    def scrap_contents(self, limit = 0) -> list:
         submit_list = []
-        count = 0
-        #scraps each link inside the URL while keeping count
-        for i in self.link_list:
-            try:
-                submit_list.append(self.scrap_submission(i))
-            
-            except Exception as e:
-                print(e)
-            count += 1
-            if(count > limit and limit > 0):
-                break
-            print(count)
-        
-        return submit_list
 
-    def scrap_contents(self, limit = 0):
-        
         count = 0
         for i in self.link_list:
             try:
                 self.scrap_to_additional(i)
-            
+                submit_list.append(self.scrap_submission(i))
             except Exception as e:
                 print(e)
             count += 1
             if(count > limit and limit > 0):
                 break
             print(count)
+        return submit_list
 
-        
-    def scrap_to_additional(self,link):
+    def create_directories(self, path) -> None:
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+    def scrap_to_additional(self,link) -> None:
         driver.get(link)
         content_title = []
         content_contents = []
+        content_add_title = []
+        content_add = []
+        download_buttons = []
         #loops the page until the driver collects the elements
         while(True):
             time.sleep(1) #Delay give the page time to load
             content_title = driver.find_elements(by=By.XPATH, value="//c-ustrfb-public-details-review-content-row//span" ) 
-            content_v = driver.find_elements(by=By.XPATH, value="//c-ustrfb-display-repeating-records//c-ustrfb-public-details-review-content-field/div/span" )
+            content_add = driver.find_elements(by=By.XPATH, value="//c-ustrfb-display-repeating-records//c-ustrfb-public-details-review-content-field/div/div/div")
             content_contents = driver.find_elements(by=By.XPATH, value="//c-ustrfb-public-details-review-content-row//div/div//div/div/div") 
-            print(content_v)
-            if(content_title == [] or content_contents == [] or content_v == []):
+            content_add_title = driver.find_elements(by=By.XPATH, value="//c-ustrfb-display-repeating-records//c-ustrfb-public-details-review-content-field/div/span" )
+            download_buttons =  driver.find_elements(by=By.XPATH, value="//c-ustr-public-docket-attachment-tile//a" )
+            
+            if(content_title == [] or content_contents == []):
                 continue
             else:
                 break
+            
         contents = []
         titles = []
+        additional_content_title= []
+        additional_content = []
+
         for i in content_title:
             titles.append(i.text)
-            #print(i.text)
         for i in content_contents:
             contents.append(i.text)
-            #print(i.text)
-        content_df = pd.DataFrame([contents], columns=titles)
-        if not os.path.exists(f"{SUBMISSION_PATH}/{content_contents[0]}/"):
-            print("made")
+        for i in content_add_title:
+            additional_content_title.append(i.text)
+        for i in content_add:
+            additional_content.append(i.text)
 
-            os.makedirs(f"{SUBMISSION_PATH}/{contents[0]}/")
-        content_df.to_csv(f"{SUBMISSION_PATH}/{contents[0]}/{contents[0]}.csv", index=False)
-        
-#Commonly used xpath's
-#all submitter content
-#//c-ustrfb-public-details-review-content-row//div/div[contains(@class, "slds-size_1-of-2")]//div//div[contains(@class, slds-form-element__static)]/div 
-# titles
-#//c-ustrfb-public-details-review-content-row//span 
-#Only submiiter title info
-#//c-ustrfb-public-details-review-content-row//c-ustrfb-public-details-review-content-field/div[(contains(@class, "slds-form-element slds-form-element_readonly") and not (contains(@class, "is-horizontal")))]/span[contains(@class,"slds-form-element__label")]
+        combined_content = contents + additional_content
+        combined_titles = titles + additional_content_title
 
-#scraps information up to additional comments
-#//c-ustrfb-public-details-review-content-row//div/div//div/div/div
-#scaps titles up to additional comments
-#//c-ustrfb-public-details-review-content-row//span
+        content_df = pd.DataFrame([combined_content], columns=combined_titles)
+        self.create_directories(f"{SUBMISSION_PATH}/{combined_content[0]}/")
+        content_df.to_csv(f"{SUBMISSION_PATH}/{combined_content[0]}/{combined_content[0]}.csv", index=False)
 
-#scraps information inside additional comments
-#//c-ustrfb-display-repeating-records//c-ustrfb-public-details-review-content-field/div/div/div
-#scraps titles inside additional comments
-#//c-ustrfb-display-repeating-records//c-ustrfb-public-details-review-content-field/div/span
+        if(download_buttons != []):
+            for i in download_buttons:
+                i.click()
+def merge_downloads():       
+    files_names = os.listdir(DOWNLOAD_PATH)
+    directories_names = os.listdir(SUBMISSION_PATH)
+    file_ids = []
+    for i in files_names:
+        file_ids.append(i[0:23])
+    for i in range(0,len(file_ids)):
+        shutil.move(f"{DOWNLOAD_PATH}/{files_names[i]}", f"{SUBMISSION_PATH}/{file_ids[i]}") 
+    #print(file_ids)
+
 docket_scraper = DocketScrapper()
 
 #Continues to loop until a link list is loaded or produced.
@@ -230,9 +239,12 @@ while(True):
         print(len(docket_scraper.link_list))
         break
 #list_of_submissions = docket_scraper.collect_submissions(10)
-#submitter_df = pd.DataFrame(list_of_submissions, columns= submitter_columns)
 
-#submitter_df.to_excel('ustr_submit.xlsx')
-list_of_submissions = docket_scraper.scrap_contents(10)
+#list_of_submissions = docket_scraper.scrap_contents(10)
+
+merge_downloads()
+
+#submitter_df = pd.DataFrame(list_of_submissions, columns= submitter_columns)
+#submitter_df.to_excel(f'{INFO_PATH}ustr_submit.xlsx')
 print('done')
 driver.quit()
