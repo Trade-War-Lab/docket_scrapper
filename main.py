@@ -2,9 +2,6 @@ from selenium import webdriver
 from selenium import *
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.select import Select
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 import shutil
 
 import time
@@ -20,7 +17,6 @@ DOWNLOAD_PATH = SUBMISSION_PATH + "download/"
 INFO_PATH = SUBMISSION_PATH + "info/"
 
 path = os.path.abspath(DOWNLOAD_PATH)
-print(path)
 prefs = {"download.default_directory":path}
 options = Options()
 options.add_experimental_option("prefs", prefs)
@@ -153,6 +149,7 @@ class DocketScrapper:
         return submitter_list
 
     def scrap_contents(self, limit = 0) -> list:
+        '''This function is called to scrap submission info and addtional comments then returns a list of only submission info.'''
         submit_list = []
 
         count = 0
@@ -197,7 +194,7 @@ class DocketScrapper:
         titles = []
         additional_content_title= []
         additional_content = []
-
+        #Extracts string from webdriver elements
         for i in content_title:
             titles.append(i.text)
         for i in content_contents:
@@ -206,18 +203,20 @@ class DocketScrapper:
             additional_content_title.append(i.text)
         for i in content_add:
             additional_content.append(i.text)
-
+        #Combines submission info and additional info
         combined_content = contents + additional_content
         combined_titles = titles + additional_content_title
 
         content_df = pd.DataFrame([combined_content], columns=combined_titles)
         self.create_directories(f"{SUBMISSION_PATH}/{combined_content[0]}/")
         content_df.to_csv(f"{SUBMISSION_PATH}/{combined_content[0]}/{combined_content[0]}.csv", index=False)
-
+        #clicks download files button if it exists
         if(download_buttons != []):
             for i in download_buttons:
                 i.click()
-def merge_downloads():       
+
+def merge_downloads() -> None:
+    '''Moves all downloaded files to their folders of the same submission ID'''       
     files_names = os.listdir(DOWNLOAD_PATH)
     directories_names = os.listdir(SUBMISSION_PATH)
     file_ids = []
@@ -225,7 +224,7 @@ def merge_downloads():
         file_ids.append(i[0:23])
     for i in range(0,len(file_ids)):
         shutil.move(f"{DOWNLOAD_PATH}/{files_names[i]}", f"{SUBMISSION_PATH}/{file_ids[i]}") 
-    #print(file_ids)
+    print("Finished MERGE")
 
 docket_scraper = DocketScrapper()
 
@@ -238,13 +237,12 @@ while(True):
     else:
         print(len(docket_scraper.link_list))
         break
-#list_of_submissions = docket_scraper.collect_submissions(10)
 
-#list_of_submissions = docket_scraper.scrap_contents(10)
+list_of_submissions = docket_scraper.scrap_contents(10)
+submitter_df = pd.DataFrame(list_of_submissions, columns= submitter_columns)
+submitter_df.to_excel(f'{INFO_PATH}ustr_submit.xlsx')
 
 merge_downloads()
 
-#submitter_df = pd.DataFrame(list_of_submissions, columns= submitter_columns)
-#submitter_df.to_excel(f'{INFO_PATH}ustr_submit.xlsx')
-print('done')
+print('DONE')
 driver.quit()
